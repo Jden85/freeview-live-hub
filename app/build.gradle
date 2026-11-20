@@ -1,0 +1,48 @@
+plugins { id 'com.android.application' }
+
+// The web UI in web/index.html is wrapped into a full HTML page and bundled into the APK.
+def wrapWeb = tasks.register('wrapWeb') {
+    def src = rootProject.file('web/index.html')
+    def out = layout.buildDirectory.dir('generated/webassets')
+    inputs.file(src); outputs.dir(out)
+    doLast {
+        def dir = out.get().asFile; dir.mkdirs()
+        new File(dir, 'index.html').text = '<!doctype html>\n<html lang="en-GB"><head><meta charset="utf-8">' +
+            '<meta name="viewport" content="width=device-width, initial-scale=1">' +
+            '<style>:root{color-scheme:dark}body{margin:0;font:14px system-ui,sans-serif}[hidden]{display:none!important}</style>' +
+            '</head><body>\n' + src.text + '\n</body></html>\n'
+    }
+}
+
+android {
+    namespace 'uk.freeviewhub.app'
+    compileSdk 34
+    defaultConfig {
+        applicationId 'uk.freeviewhub.app'
+        minSdk 22
+        targetSdk 34
+        versionCode((System.getenv('GITHUB_RUN_NUMBER') ?: '1').toInteger())
+        versionName "1.0.${System.getenv('GITHUB_RUN_NUMBER') ?: '0'}"
+    }
+    signingConfigs {
+        release {
+            def ks = System.getenv('KEYSTORE_FILE')
+            if (ks) {
+                storeFile file(ks)
+                storePassword System.getenv('KEYSTORE_PASSWORD')
+                keyAlias System.getenv('KEY_ALIAS')
+                keyPassword System.getenv('KEYSTORE_PASSWORD')
+            }
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig System.getenv('KEYSTORE_FILE') ? signingConfigs.release : signingConfigs.debug
+        }
+    }
+    sourceSets { main { assets.srcDirs += [layout.buildDirectory.dir('generated/webassets').get().asFile] } }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+}
+
+tasks.named('preBuild') { dependsOn wrapWeb }

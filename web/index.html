@@ -1,0 +1,352 @@
+<title>Freeview Live Hub</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Red+Hat+Display:wght@500;700;900&family=Red+Hat+Text:wght@400;500;700&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: 10-foot TV shell — top bar with tabs + clock, one full-height view below. Dark-only by design (living-room screen). */
+:root{
+  --bg:#0a0f1c; --surface:#121a2c; --surface-2:#1a2440; --line:#24304f;
+  --fg:#eef2fb; --muted:#93a0bf; --focus:#ffb43d; --focus-ink:#1a1204; --live:#ff5a5f; --now:#ffb43d;
+  --f-display:"Red Hat Display",system-ui,sans-serif; --f-text:"Red Hat Text",system-ui,sans-serif; --f-mono:"JetBrains Mono",ui-monospace,monospace;
+  color-scheme:dark;
+}
+html,body{height:100%}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-text);font-size:16px;overflow:hidden}
+a{color:inherit;text-decoration:none}
+.app{height:100%;display:flex;flex-direction:column;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:14px 10px;gap:14px;box-sizing:border-box}
+header{display:flex;align-items:center;gap:20px;flex-wrap:wrap}
+.brand{font-family:var(--f-display);font-weight:900;font-size:1.35rem;letter-spacing:-.01em;display:flex;align-items:center;gap:8px}
+.brand i{width:10px;height:10px;border-radius:50%;background:var(--live);box-shadow:0 0 12px var(--live)}
+nav{display:flex;gap:6px}
+nav a{font-family:var(--f-display);font-weight:700;padding:8px 16px;border-radius:999px;color:var(--muted);outline:none;border:2px solid transparent}
+nav a[aria-current="page"]{color:var(--fg);background:var(--surface-2)}
+.clock{margin-left:auto;font-family:var(--f-mono);font-size:1.1rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.sample{font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);border:1px solid var(--line);padding:3px 8px;border-radius:4px}
+[data-nav]:focus{outline:3px solid var(--focus);outline-offset:2px}
+nav a:focus{background:var(--focus);color:var(--focus-ink);outline:none}
+main{flex:1;min-height:0;display:flex;flex-direction:column}
+section[hidden]{display:none!important}
+section{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px}
+
+/* Live TV */
+.live{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:18px;flex:1;min-height:0}
+.chlist{overflow-y:auto;display:flex;flex-direction:column;gap:4px;padding:4px 6px 4px 2px;scrollbar-width:thin}
+.ch{display:grid;grid-template-columns:3.2rem minmax(0,1fr);gap:12px;align-items:center;padding:10px 12px;border-radius:10px;background:var(--surface);outline:none;border:2px solid transparent}
+.ch:focus{border-color:var(--focus);background:var(--surface-2);outline:none}
+.ch .num{font-family:var(--f-mono);font-size:1.15rem;color:var(--muted);text-align:right;font-variant-numeric:tabular-nums}
+.ch .nm{font-family:var(--f-display);font-weight:700;font-size:1.05rem;display:flex;gap:8px;align-items:center}
+.hd{font-family:var(--f-text);font-size:.62rem;font-weight:700;letter-spacing:.06em;border:1.5px solid currentColor;border-radius:3px;padding:0 4px;color:var(--muted)}
+.ch .now{color:var(--fg);font-size:.92rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ch .next{color:var(--muted);font-size:.8rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar{height:4px;background:var(--line);border-radius:2px;margin-top:6px;overflow:hidden}
+.bar b{display:block;height:100%;background:var(--now)}
+.preview{background:linear-gradient(160deg,var(--surface-2),var(--surface));border-radius:16px;padding:28px;display:flex;flex-direction:column;gap:12px;min-height:0;overflow:auto}
+.preview .eyebrow{font-size:.75rem;letter-spacing:.12em;text-transform:uppercase;color:var(--live);font-weight:700;display:flex;gap:8px;align-items:center}
+.preview h2{font-family:var(--f-display);font-weight:900;font-size:clamp(1.6rem,3.2vw,2.6rem);line-height:1.05;margin:0;text-wrap:balance}
+.preview .meta{font-family:var(--f-mono);color:var(--muted);font-size:.9rem}
+.preview p{color:#c6cee3;line-height:1.5;max-width:60ch;margin:0}
+.watch{margin-top:auto;display:inline-flex;align-self:flex-start;gap:10px;align-items:center;background:var(--focus);color:var(--focus-ink);font-family:var(--f-display);font-weight:900;padding:12px 20px;border-radius:999px}
+.later{border-top:1px solid var(--line);padding-top:12px;display:flex;flex-direction:column;gap:6px;font-size:.9rem}
+.later div{display:grid;grid-template-columns:4rem 1fr;gap:10px;color:var(--muted)}
+.later span:first-child{font-family:var(--f-mono)}
+.later span:last-child{color:var(--fg)}
+
+/* Guide */
+.gdetail{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px;align-items:end;background:var(--surface);border-radius:14px;padding:16px 20px;min-height:5.6rem}
+.gdetail h3{font-family:var(--f-display);font-weight:900;font-size:1.5rem;margin:2px 0 4px}
+.gdetail .meta{font-family:var(--f-mono);color:var(--muted);font-size:.85rem}
+.gdetail p{margin:6px 0 0;color:#c6cee3;font-size:.92rem;max-width:70ch}
+.gdetail .hint{font-size:.85rem;color:var(--muted);text-align:right}
+.gdetail .hint b{color:var(--focus)}
+.grid{flex:1;min-height:0;overflow:auto;position:relative;border-radius:12px;background:var(--surface);scrollbar-width:thin}
+.ruler,.grow{display:flex;width:max-content}
+.ruler{position:sticky;top:0;z-index:3;background:var(--bg)}
+.corner,.gch{position:sticky;left:0;z-index:2;width:10.5rem;flex:none;box-sizing:border-box;background:var(--bg)}
+.corner{z-index:4}
+.ticks{position:relative;height:2rem}
+.ticks span{position:absolute;top:6px;font-family:var(--f-mono);font-size:.8rem;color:var(--muted);padding-left:6px;border-left:1px solid var(--line);height:1.4rem}
+.gch{display:flex;align-items:center;gap:10px;padding:0 12px;border-bottom:1px solid var(--line);border-right:1px solid var(--line);height:3.4rem}
+.gch .num{font-family:var(--f-mono);color:var(--muted);font-size:.85rem;width:2.2rem;text-align:right}
+.gch .nm{font-family:var(--f-display);font-weight:700;font-size:.92rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.track{position:relative;height:3.4rem;border-bottom:1px solid var(--line)}
+.cell{position:absolute;top:3px;bottom:3px;box-sizing:border-box;padding:6px 10px;border-radius:6px;background:var(--surface-2);overflow:hidden;outline:none;border:2px solid transparent;display:flex;flex-direction:column;justify-content:center}
+.cell.past{opacity:.45}
+.cell.onnow{background:#22305a}
+.cell:focus{background:var(--focus);color:var(--focus-ink);border-color:var(--focus);outline:none;z-index:1}
+.cell .t{font-weight:700;font-size:.88rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cell .s{font-family:var(--f-mono);font-size:.7rem;opacity:.75;white-space:nowrap}
+.nowline{position:absolute;top:0;bottom:0;width:2px;background:var(--live);z-index:1;pointer-events:none}
+
+/* On demand */
+.od{overflow-y:auto;display:flex;flex-direction:column;gap:24px;padding:2px}
+.od h3{font-family:var(--f-display);font-weight:700;font-size:1.1rem;margin:0 0 10px;color:var(--muted);letter-spacing:.02em}
+.row{display:grid;grid-template-columns:repeat(auto-fill,minmax(14rem,1fr));gap:12px}
+.tile{display:flex;flex-direction:column;gap:6px;padding:18px;border-radius:12px;background:var(--surface);min-height:6.5rem;outline:none;border:2px solid transparent;box-sizing:border-box}
+.tile:focus{border-color:var(--focus);background:var(--surface-2)}
+.tile .k{font-family:var(--f-display);font-weight:900;font-size:1.25rem}
+.tile .d{color:var(--muted);font-size:.88rem;line-height:1.4}
+.tile .sw{width:28px;height:4px;border-radius:2px}
+
+.tune{position:fixed;top:calc(20px + env(safe-area-inset-top,0px));right:max(24px,env(safe-area-inset-right,0px));background:rgba(10,15,28,.92);border:2px solid var(--focus);border-radius:12px;padding:12px 18px;font-family:var(--f-mono);font-size:2rem;z-index:20}
+.tune small{display:block;font-family:var(--f-text);font-size:.85rem;color:var(--muted)}
+footer{font-size:.78rem;color:var(--muted);display:flex;gap:18px;flex-wrap:wrap}
+footer kbd{font-family:var(--f-mono);border:1px solid var(--line);border-radius:4px;padding:0 5px;color:var(--fg)}
+
+@media (max-width:760px){
+  body{overflow:auto}
+  .app{height:auto;min-height:100%}
+  .live{grid-template-columns:1fr}
+  .preview{order:-1;padding:20px}
+  .chlist{overflow:visible}
+  .grid{min-height:70vh}
+  .corner,.gch{width:7.5rem}
+  .gdetail{grid-template-columns:1fr}
+  .gdetail .hint{text-align:left}
+  .clock{margin-left:0}
+}
+@media (prefers-reduced-motion:no-preference){ .ch,.cell,.tile{transition:background .12s,border-color .12s} }
+</style>
+
+<div class="app">
+  <header>
+    <div class="brand"><i></i>Freeview Live Hub</div>
+    <nav>
+      <a href="#live" data-nav data-tab="live">Live TV</a>
+      <a href="#guide" data-nav data-tab="guide">TV Guide</a>
+      <a href="#ondemand" data-nav data-tab="ondemand">On Demand</a>
+    </nav>
+    <span class="sample">North West · Blackburn</span>
+    <span class="sample" title="Programme names and times are generated for this demo">Sample listings</span>
+    <div class="clock" id="clock">--:--</div>
+  </header>
+
+  <main>
+    <section id="v-live">
+      <div class="live">
+        <div class="chlist" id="chlist"></div>
+        <aside class="preview" id="preview"></aside>
+      </div>
+    </section>
+
+    <section id="v-guide" hidden>
+      <div class="gdetail" id="gdetail"></div>
+      <div class="grid" id="grid"></div>
+    </section>
+
+    <section id="v-ondemand" hidden>
+      <div class="od" id="od"></div>
+    </section>
+  </main>
+
+  <footer>
+    <span><kbd>↑↓←→</kbd> move</span><span><kbd>OK</kbd>/<kbd>Enter</kbd> watch</span>
+    <span><kbd>0–9</kbd> type a channel number</span><span><kbd>PgUp</kbd>/<kbd>PgDn</kbd> channel up/down</span>
+    <span>Live streams open in the broadcaster's own app or site.</span>
+  </footer>
+</div>
+<div class="tune" id="tune" hidden></div>
+
+<script>
+(() => {
+/* ---------- Channels: Freeview (England) order, HD version used where one exists ---------- */
+const P = {
+  bbc:{app:'BBC iPlayer',col:'#ff4f8b', live:id=>`https://www.bbc.co.uk/iplayer/live/${id}`},
+  itv:{app:'ITVX',col:'#7cf2c4', live:id=>`https://www.itv.com/watch?channel=${id}`},
+  c4:{app:'Channel 4',col:'#b48cff', live:id=>`https://www.channel4.com/now/${id}`},
+  c5:{app:'My5',col:'#ff6b6b', live:id=>`https://www.channel5.com/live/${id}`},
+};
+const CH = [
+  [1,'BBC One North West',true,'bbc','bbcone','bbc1'],
+  [2,'BBC Two',true,'bbc','bbctwo','bbc2'],
+  [3,'ITV1 Granada',true,'itv','itv','itv1'],
+  [4,'Channel 4',true,'c4','C4','c4'],
+  [5,'Channel 5',true,'c5','5','c5'],
+  [6,'ITV2',false,'itv','itv2','ent'],
+  [7,'BBC Three',true,'bbc','bbcthree','ent'],
+  [9,'BBC Four',true,'bbc','bbcfour','bbc4'],
+  [10,'ITV3',false,'itv','itv3','drama'],
+  [13,'E4',false,'c4','E4','ent'],
+  [14,'Film4',false,'c4','F4','film'],
+  [18,'More4',false,'c4','M4','factual'],
+  [24,'ITV4',false,'itv','itv4','drama'],
+  [26,'ITVBe',false,'itv','itvbe','ent'],
+  [31,'5STAR',false,'c5','5star','ent'],
+  [32,'5USA',false,'c5','5usa','drama'],
+  [201,'CBBC',true,'bbc','cbbc','kids'],
+  [202,'CBeebies',true,'bbc','cbeebies','kids'],
+  [231,'BBC News',true,'bbc','bbcnews','news'],
+  [232,'BBC Parliament',false,'bbc','bbcparliament','parl'],
+].map(([n,name,hd,p,id,pool])=>({n,name,hd,p,id,pool,app:P[p].app,col:P[p].col,url:P[p].live(id)}));
+
+/* ---------- Sample schedule pools: [title, minutes, description] ---------- */
+const POOLS = {
+  bbc1:[['Breakfast',180,'News, sport, weather and guests to start the day.'],['Homes Under the Hammer',60,'Properties bought at auction are renovated and revalued.'],['Bargain Hunt',60,'Two teams scour an antiques fair for profitable finds.'],['Doctors',30,'Drama set in a busy Midlands GP surgery.'],['Escape to the Country',60,'Buyers search for their rural dream home.'],['Pointless',60,'Quiz where contestants hunt for the least-known answers.'],['The One Show',30,'Topical magazine programme live from London.'],['EastEnders',30,'Drama in Albert Square.'],['Saturday Night Drama',60,'Tense crime drama series.'],['Match of the Day',90,'Highlights from the day\'s top-flight football.']],
+  bbc2:[['Politics Live',60,'Debate and discussion from Westminster.'],['Flog It!',60,'Experts value heirlooms bound for auction.'],['Gardeners\' World',60,'Seasonal advice and garden tours.'],['Only Connect',30,'Puzzling quiz of patterns and links.'],['University Challenge',30,'Student teams take on the fiercest buzzer quiz.'],['Newsnight',45,'In-depth news analysis.'],['Natural World',60,'Wildlife documentary.'],['Mastermind',30,'Specialist subjects under the spotlight.']],
+  bbc4:[['Timeshift',60,'Archive-led social history.'],['Top of the Pops',30,'Classic chart performances.'],['Storyville',90,'International documentary.'],['Sky at Night',30,'News from the night sky.'],['Art Documentary',60,'A critic explores a master\'s work.']],
+  itv1:[['Good Morning Britain',150,'News and current affairs.'],['Lorraine',60,'Lifestyle, showbiz and fashion.'],['This Morning',150,'Live magazine show.'],['Loose Women',60,'Topical chat.'],['The Chase',60,'Contestants take on a quiz genius.'],['Emmerdale',30,'Life in the Yorkshire Dales village.'],['Coronation Street',60,'Drama on the cobbles.'],['Saturday Night Entertainment',90,'Big-studio family entertainment.']],
+  c4:[['Countdown',45,'Letters and numbers game.'],['A Place in the Sun',60,'House-hunting in the sun.'],['Channel 4 News',60,'Award-winning news.'],['The Great Pottery Throw Down',60,'Potters compete in skill challenges.'],['Gogglebox',60,'Britain watches the week\'s TV.'],['Grand Designs',60,'Ambitious self-builds.'],['Documentary Special',60,'Hard-hitting investigation.']],
+  c5:[['Milkshake!',180,'Children\'s programmes.'],['Jeremy Vine',120,'Live debate.'],['Afternoon Film',90,'Thriller.'],['5 News',30,'National news.'],['Bargain Loving Brits',60,'Shoppers chasing a deal.'],['Police Interceptors',60,'Traffic cops on patrol.'],['Walks Documentary',60,'Britain\'s most scenic routes.']],
+  ent:[['Reality Series',60,'Singles look for love.'],['Sitcom Double Bill',60,'Back-to-back classic comedy.'],['Celebrity Quiz',60,'Comedians and celebrities go head to head.'],['Dating Show',60,'Blind dates in the city.'],['Animated Comedy',30,'Cartoon comedy for grown-ups.'],['Hidden Camera',30,'Pranks on the unsuspecting public.']],
+  drama:[['Classic Detective',120,'A country murder mystery.'],['Midsomer Mystery',120,'Bodies pile up in a quiet village.'],['Heartbeat',60,'1960s Yorkshire police drama.'],['US Crime Drama',60,'Investigators chase a killer.'],['Motorsport Highlights',60,'Weekend racing action.']],
+  film:[['Afternoon Western',120,'A drifter defends a frontier town.'],['British Comedy Classic',90,'Ealing-era caper.'],['Sci-Fi Thriller',120,'A lone astronaut faces the unknown.'],['Award-Winning Drama',120,'Festival favourite.'],['Action Blockbuster',150,'High-octane chase thriller.']],
+  factual:[['Car SOS',60,'Classic cars rescued from ruin.'],['Escape to the Chateau',60,'Restoring a French chateau.'],['Four in a Bed',60,'B&B owners rate each other.'],['24 Hours in A&E',60,'Life in a busy emergency department.']],
+  kids:[['Cartoon Block',30,'Animated adventures.'],['Live Magazine',60,'Games, guests and gunge.'],['Storytime',30,'Bedtime stories.'],['Science Show',30,'Experiments that go bang.'],['Craft Club',30,'Make it yourself.']],
+  news:[['BBC News',60,'Rolling news coverage.'],['World Business Report',30,'Global markets.'],['The Context',60,'Analysis of the day.'],['Sportsday',30,'Sports news.'],['Click',30,'Technology news.']],
+  parl:[['House of Commons',120,'Live coverage of the Commons.'],['House of Lords',120,'Live coverage of the Lords.'],['Select Committee',90,'MPs question witnesses.'],['Week in Parliament',60,'Highlights.']],
+};
+
+/* ---------- Fixed-time slots: national + North West regional news ---------- */
+const ANCHORS={
+  1:[[13,0,'BBC News at One',30,'The latest national and international news.'],[13,30,'BBC North West Today',15,'Regional news and weather for Lancashire, Greater Manchester, Merseyside and Cheshire.'],
+     [18,0,'BBC News at Six',30,'The day\'s main stories.'],[18,30,'BBC North West Tonight',30,'News, sport and weather from across the North West.'],
+     [22,0,'BBC News at Ten',30,'The latest news, with analysis.'],[22,30,'BBC North West Tonight',15,'Late regional news and weather for the North West.']],
+  3:[[13,30,'ITV Lunchtime News',25,'National news.'],[13,55,'Granada Reports',5,'Lunchtime news for the North West.'],
+     [18,0,'Granada Reports',30,'News, sport and weather for the North West.'],[18,30,'ITV Evening News',30,'National news.'],
+     [22,0,'ITV News at Ten',30,'The day\'s top stories.'],[22,30,'Granada Reports',15,'Late regional news for the North West.']],
+};
+
+/* ---------- Seeded schedule generation (stable for the day) ---------- */
+function rng(seed){return()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const MIN=60000;
+const dayStart=(()=>{const d=new Date();d.setHours(6,0,0,0);if(Date.now()<d)d.setDate(d.getDate()-1);return d.getTime()})();
+const dayEnd=dayStart+24*60*MIN;
+CH.forEach(ch=>{
+  const r=rng(ch.n*977+new Date(dayStart).getDate()*31);
+  const pool=POOLS[ch.pool];let t=dayStart,i=Math.floor(r()*pool.length);ch.progs=[];
+  const anchors=(ANCHORS[ch.n]||[]).map(([h,m,title,len,desc])=>{const d=new Date(dayStart);d.setHours(h,m,0,0);if(d.getTime()<dayStart)d.setDate(d.getDate()+1);return{title,desc,start:d.getTime(),len}}).sort((a,b)=>a.start-b.start);
+  while(t<dayEnd){
+    const a=anchors.find(a=>a.start>=t);
+    if(a&&a.start===t){ch.progs.push({title:a.title,desc:a.desc,start:t,end:t+a.len*MIN,ch,local:true});t+=a.len*MIN;continue}
+    const [title,len,desc]=pool[i%pool.length];let end=Math.min(t+len*MIN,dayEnd);if(a&&a.start<end)end=a.start;
+    ch.progs.push({title,desc,start:t,end,ch});t=end;i+=1+Math.floor(r()*2)}
+});
+const fmt=t=>new Date(t).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+const nowOf=ch=>{const n=Date.now();const k=ch.progs.findIndex(p=>p.start<=n&&p.end>n);return[ch.progs[k],ch.progs[k+1],ch.progs[k+2],ch.progs[k+3]]};
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const link=(ch,cls,extra='')=>`<a class="${cls}" data-nav href="${ch.url}" target="_blank" rel="noopener" ${extra}>`;
+
+/* ---------- Live TV view ---------- */
+const chlist=document.getElementById('chlist'),preview=document.getElementById('preview');
+function renderLive(){
+  const keep=document.activeElement?.dataset?.ch;
+  chlist.innerHTML=CH.map(ch=>{const[now,next]=nowOf(ch);const pct=now?((Date.now()-now.start)/(now.end-now.start)*100).toFixed(1):0;
+    return `${link(ch,'ch',`data-ch="${ch.n}"`)}<span class="num">${ch.n}</span><span style="min-width:0">
+      <span class="nm">${esc(ch.name)}${ch.hd?'<span class="hd">HD</span>':''}</span>
+      <div class="now">${now?esc(now.title):''}</div><div class="next">${next?'Next '+fmt(next.start)+' · '+esc(next.title):''}</div>
+      <div class="bar"><b style="width:${pct}%"></b></div></span></a>`}).join('');
+  if(keep)chlist.querySelector(`[data-ch="${keep}"]`)?.focus({preventScroll:true});
+  showPreview(CH.find(c=>c.n==(keep||current))||CH[0]);
+}
+let current=1;
+function showPreview(ch){
+  current=ch.n;const[now,...later]=nowOf(ch);
+  preview.innerHTML=`<div class="eyebrow"><span style="width:8px;height:8px;border-radius:50%;background:var(--live)"></span>Live now on ${ch.n} ${esc(ch.name)}${ch.hd?' HD':''}</div>
+    <h2>${esc(now.title)}</h2><div class="meta">${fmt(now.start)} – ${fmt(now.end)} · ${Math.round((now.end-Date.now())/MIN)} min left</div>
+    <p>${esc(now.desc)}</p>
+    <div class="later">${later.filter(Boolean).map(p=>`<div><span>${fmt(p.start)}</span><span>${esc(p.title)}</span></div>`).join('')}</div>
+    <span class="watch">▶ OK to watch in ${ch.app}</span>`;
+}
+chlist.addEventListener('focusin',e=>{const a=e.target.closest('.ch');if(a)showPreview(CH.find(c=>c.n==a.dataset.ch))});
+
+/* ---------- Guide view ---------- */
+const grid=document.getElementById('grid'),gdetail=document.getElementById('gdetail');
+const PX=()=>window.innerWidth<760?4:6; // pixels per minute
+function renderGuide(){
+  const px=PX(),W=24*60*px;const x=t=>(t-dayStart)/MIN*px;
+  let ticks='';for(let m=0;m<24*60;m+=30)ticks+=`<span style="left:${m*px}px">${fmt(dayStart+m*MIN)}</span>`;
+  const now=Date.now();
+  grid.innerHTML=`<div class="ruler"><div class="corner"></div><div class="ticks" style="width:${W}px">${ticks}</div></div>`+
+    CH.map(ch=>`<div class="grow"><div class="gch"><span class="num">${ch.n}</span><span class="nm">${esc(ch.name)}${ch.hd?' HD':''}</span></div>
+      <div class="track" style="width:${W}px">${ch.progs.map((p,i)=>`${link(ch,'cell'+(p.end<=now?' past':p.start<=now?' onnow':''),`data-ch="${ch.n}" data-i="${i}" style="left:${x(p.start)+2}px;width:${x(p.end)-x(p.start)-4}px"`)}<span class="t">${esc(p.title)}</span><span class="s">${fmt(p.start)}</span></a>`).join('')}
+      <div class="nowline" style="left:${x(now)}px"></div></div></div>`).join('');
+}
+function showDetail(p){
+  const n=Date.now(),on=p.start<=n&&p.end>n;
+  gdetail.innerHTML=`<div><div class="meta">${p.ch.n} ${esc(p.ch.name)} · ${fmt(p.start)} – ${fmt(p.end)}${on?' · <span style="color:var(--live)">ON NOW</span>':p.end<=n?' · Earlier':''}</div>
+    <h3>${esc(p.title)}</h3><p>${esc(p.desc)}</p></div>
+    <div class="hint"><b>OK</b> plays ${esc(p.ch.name)} live in ${p.ch.app}</div>`;
+}
+grid.addEventListener('focusin',e=>{const c=e.target.closest('.cell');if(c)showDetail(CH.find(x=>x.n==c.dataset.ch).progs[c.dataset.i])});
+function focusGuideNow(chn=current){
+  const ch=CH.find(c=>c.n==chn)||CH[0];const[now]=nowOf(ch);const i=ch.progs.indexOf(now);
+  const el=grid.querySelector(`.cell[data-ch="${ch.n}"][data-i="${i}"]`);
+  grid.scrollLeft=Math.max(0,(Date.now()-dayStart)/MIN*PX()-60*PX());
+  el?.focus({preventScroll:true});el?.scrollIntoView({block:'nearest'});showDetail(now);
+}
+
+/* ---------- On Demand view ---------- */
+const OD=[
+  ['Catch up by broadcaster',[
+    ['BBC iPlayer','Box sets, catch-up and every BBC channel.','https://www.bbc.co.uk/iplayer',P.bbc.col],
+    ['ITVX','ITV dramas, soaps, reality and films.','https://www.itv.com/',P.itv.col],
+    ['Channel 4','Channel 4, E4, More4 and Film4 shows.','https://www.channel4.com/',P.c4.col],
+    ['My5','Channel 5, 5STAR and 5USA catch-up.','https://www.channel5.com/',P.c5.col],
+    ['U','Dave, Drama, Yesterday and W shows.','https://u.co.uk/','#ffd166'],
+  ]],
+  ['Browse',[
+    ['Most popular on iPlayer','What everyone is watching on the BBC.','https://www.bbc.co.uk/iplayer/most-popular',P.bbc.col],
+    ['iPlayer A–Z','Every BBC programme, alphabetically.','https://www.bbc.co.uk/iplayer/a-z',P.bbc.col],
+    ['ITVX categories','Drama, soaps, films, kids and more.','https://www.itv.com/watch/categories',P.itv.col],
+    ['Channel 4 categories','Comedy, documentaries, drama and more.','https://www.channel4.com/categories',P.c4.col],
+  ]],
+];
+document.getElementById('od').innerHTML=OD.map(([h,items])=>`<div><h3>${h}</h3><div class="row">${items.map(([k,d,u,c])=>`<a class="tile" data-nav href="${u}" target="_blank" rel="noopener"><span class="sw" style="background:${c}"></span><span class="k">${k}</span><span class="d">${d}</span></a>`).join('')}</div></div>`).join('');
+
+/* ---------- Tabs / routing ---------- */
+const VIEWS=['live','guide','ondemand'];
+function show(v,focus=true){
+  if(!VIEWS.includes(v))v='live';
+  VIEWS.forEach(x=>{document.getElementById('v-'+x).hidden=x!==v;document.querySelector(`nav a[data-tab="${x}"]`).toggleAttribute('aria-current',x===v);
+    if(x===v)document.querySelector(`nav a[data-tab="${x}"]`).setAttribute('aria-current','page')});
+  if(!focus)return;
+  if(v==='live')(chlist.querySelector(`[data-ch="${current}"]`)||chlist.firstElementChild).focus();
+  if(v==='guide')focusGuideNow();
+  if(v==='ondemand')document.querySelector('#od .tile').focus();
+}
+addEventListener('hashchange',()=>show(location.hash.slice(1)));
+// Called by the Firestick app when Back is pressed: return to Live TV first, exit from there.
+window.hubBack=()=>{if((location.hash||'#live')!=='#live'){location.hash='live';return true}return false};
+
+/* ---------- Remote-control (D-pad) spatial navigation ---------- */
+function visibleNav(){return[...document.querySelectorAll('[data-nav]')].filter(el=>el.offsetParent!==null)}
+function move(dir){
+  const cur=document.activeElement;if(!cur||!cur.matches('[data-nav]')){show(location.hash.slice(1)||'live');return}
+  const a=cur.getBoundingClientRect(),acx=(a.left+a.right)/2,acy=(a.top+a.bottom)/2;let best=null,bs=Infinity;
+  for(const el of visibleNav()){if(el===cur)continue;const b=el.getBoundingClientRect();let prim,sec;
+    if(dir==='down'){prim=b.top-a.bottom;sec=Math.max(0,b.left-a.right,a.left-b.right)}
+    else if(dir==='up'){prim=a.top-b.bottom;sec=Math.max(0,b.left-a.right,a.left-b.right)}
+    else if(dir==='right'){prim=b.left-a.right;sec=Math.max(0,b.top-a.bottom,a.top-b.bottom)}
+    else{prim=a.left-b.right;sec=Math.max(0,b.top-a.bottom,a.top-b.bottom)}
+    if(prim<-4)continue;
+    // in the guide, prefer the cell under the current one's centre when moving up/down
+    if((dir==='up'||dir==='down')&&sec===0)sec=Math.abs(Math.max(b.left,Math.min(acx,b.right))-acx)/50;
+    const s=prim+sec*4;if(s<bs){bs=s;best=el}}
+  if(best){best.focus({preventScroll:true});best.scrollIntoView({block:'nearest',inline:'nearest'});
+    if(best.dataset.tab){location.hash=best.dataset.tab;show(best.dataset.tab,false);best.focus()}}
+}
+let digits='',dt;const tune=document.getElementById('tune');
+function tuneTo(n){
+  const ch=CH.find(c=>c.n===n);
+  tune.innerHTML=ch?`${n}<small>${esc(ch.name)} · OK to watch</small>`:`${n}<small>No channel</small>`;tune.hidden=false;
+  setTimeout(()=>tune.hidden=true,2500);
+  if(!ch)return;current=n;
+  if(location.hash==='#guide')focusGuideNow(n);else{location.hash='live';show('live')}
+}
+addEventListener('keydown',e=>{
+  const k={ArrowUp:'up',ArrowDown:'down',ArrowLeft:'left',ArrowRight:'right'}[e.key];
+  if(k){e.preventDefault();move(k);return}
+  if(/^[0-9]$/.test(e.key)){digits+=e.key;tune.innerHTML=digits+'_';tune.hidden=false;clearTimeout(dt);
+    dt=setTimeout(()=>{tuneTo(+digits);digits=''},digits.length>=3?0:1300);return}
+  if(e.key==='PageUp'||e.key==='PageDown'){e.preventDefault();const i=CH.findIndex(c=>c.n===current);
+    const ch=CH[(i+(e.key==='PageUp'?-1:1)+CH.length)%CH.length];tuneTo(ch.n)}
+});
+
+/* ---------- Clock + live refresh ---------- */
+function tick(){document.getElementById('clock').textContent=new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}
+tick();setInterval(()=>{tick();if(!document.getElementById('v-live').hidden)renderLive()},30000);
+
+renderLive();renderGuide();
+const start=location.hash.slice(1)||'live';show(start,false);
+setTimeout(()=>{show(start)},50);
+})();
+</script>
