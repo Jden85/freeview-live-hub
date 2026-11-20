@@ -14,11 +14,11 @@ html,body{height:100%}
 body{background:var(--bg);color:var(--fg);font-family:var(--f-text);font-size:16px;overflow:hidden}
 a{color:inherit;text-decoration:none}
 .app{height:100%;display:flex;flex-direction:column;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:14px 10px;gap:14px;box-sizing:border-box}
-header{display:flex;align-items:center;gap:20px;flex-wrap:wrap}
+header{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
 .brand{font-family:var(--f-display);font-weight:900;font-size:1.35rem;letter-spacing:-.01em;display:flex;align-items:center;gap:8px}
 .brand i{width:10px;height:10px;border-radius:50%;background:var(--live);box-shadow:0 0 12px var(--live)}
 nav{display:flex;gap:6px}
-nav a{font-family:var(--f-display);font-weight:700;padding:8px 16px;border-radius:999px;color:var(--muted);outline:none;border:2px solid transparent}
+nav a{font-family:var(--f-display);font-weight:700;padding:8px 14px;border-radius:999px;color:var(--muted);outline:none;border:2px solid transparent}
 nav a[aria-current="page"]{color:var(--fg);background:var(--surface-2)}
 .clock{margin-left:auto;font-family:var(--f-mono);font-size:1.1rem;color:var(--muted);font-variant-numeric:tabular-nums}
 .sample{font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);border:1px solid var(--line);padding:3px 8px;border-radius:4px}
@@ -89,6 +89,14 @@ section{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px}
 
 .tune{position:fixed;top:calc(20px + env(safe-area-inset-top,0px));right:max(24px,env(safe-area-inset-right,0px));background:rgba(10,15,28,.92);border:2px solid var(--focus);border-radius:12px;padding:12px 18px;font-family:var(--f-mono);font-size:2rem;z-index:20}
 .tune small{display:block;font-family:var(--f-text);font-size:.85rem;color:var(--muted)}
+.diag{display:grid;grid-template-columns:repeat(auto-fill,minmax(18rem,1fr));gap:8px;font-size:.85rem}
+.diag div{background:var(--surface);border-radius:8px;padding:8px 12px;min-width:0;overflow-wrap:anywhere}
+.diag .bad{color:var(--live)} .diag .good{color:#7cf2c4}
+.trow{display:grid;grid-template-columns:minmax(9rem,1.2fr) minmax(0,2fr) auto;gap:10px;align-items:center;background:var(--surface);border-radius:8px;padding:6px 10px;font-size:.85rem}
+.trow .btns{display:flex;gap:6px;flex-wrap:wrap}
+.trow a{padding:5px 10px;border-radius:6px;background:var(--surface-2);outline:none;border:2px solid transparent;font-weight:700}
+.trow a:focus{background:var(--focus);color:var(--focus-ink)}
+.mono{font-family:var(--f-mono);font-size:.75rem;color:var(--muted);overflow-wrap:anywhere}
 footer{font-size:.78rem;color:var(--muted);display:flex;gap:18px;flex-wrap:wrap}
 footer kbd{font-family:var(--f-mono);border:1px solid var(--line);border-radius:4px;padding:0 5px;color:var(--fg)}
 
@@ -114,9 +122,9 @@ footer kbd{font-family:var(--f-mono);border:1px solid var(--line);border-radius:
       <a href="#live" data-nav data-tab="live">Live TV</a>
       <a href="#guide" data-nav data-tab="guide">TV Guide</a>
       <a href="#ondemand" data-nav data-tab="ondemand">On Demand</a>
+      <a href="#appcheck" data-nav data-tab="appcheck" id="tab-appcheck" hidden>App check</a>
     </nav>
-    <span class="sample">North West · Blackburn</span>
-    <span class="sample" title="Programme names and times are generated for this demo">Sample listings</span>
+    <span class="sample" id="listings-chip" title="Programme names and times are generated for this demo">North West · Sample listings</span>
     <div class="clock" id="clock">--:--</div>
   </header>
 
@@ -131,6 +139,10 @@ footer kbd{font-family:var(--f-mono);border:1px solid var(--line);border-radius:
     <section id="v-guide" hidden>
       <div class="gdetail" id="gdetail"></div>
       <div class="grid" id="grid"></div>
+    </section>
+
+    <section id="v-appcheck" hidden>
+      <div class="od" id="appcheck"></div>
     </section>
 
     <section id="v-ondemand" hidden>
@@ -177,6 +189,13 @@ const CH = [
   [231,'BBC News',true,'bbc','bbcnews','news'],
   [232,'BBC Parliament',false,'bbc','bbcparliament','parl'],
 ].map(([n,name,hd,p,id,pool])=>({n,name,hd,p,id,pool,app:P[p].app,col:P[p].col,url:P[p].live(id)}));
+// Names each channel may have in Fire TV's own channel list ("$" = exact name only).
+const ALIASES={1:['bbcone','bbc1'],2:['bbctwo','bbc2'],3:['itv1','itv$','itvgranada'],4:['channel4','c4$'],5:['channel5','five$','5$'],
+  6:['itv2'],7:['bbcthree','bbc3'],9:['bbcfour','bbc4'],10:['itv3'],13:['e4'],14:['film4'],18:['more4'],24:['itv4'],26:['itvbe'],
+  31:['5star'],32:['5usa'],201:['cbbc'],202:['cbeebies'],231:['bbcnews'],232:['bbcparliament']};
+CH.forEach(ch=>ch.aliases=ALIASES[ch.n]||[]);
+const NATIVE=window.HubAndroid||null;
+const chReq=ch=>({n:String(ch.n),aliases:ch.aliases,provider:ch.p,url:ch.url});
 
 /* ---------- Sample schedule pools: [title, minutes, description] ---------- */
 const POOLS = {
@@ -239,9 +258,10 @@ function renderLive(){
 }
 let current=1;
 function showPreview(ch){
-  current=ch.n;const[now,...later]=nowOf(ch);
+  current=ch.n;let[now,...later]=nowOf(ch);
+  if(!now)now={title:'No listing available',desc:'Press OK to watch this channel live.',start:Date.now(),end:Date.now()};
   preview.innerHTML=`<div class="eyebrow"><span style="width:8px;height:8px;border-radius:50%;background:var(--live)"></span>Live now on ${ch.n} ${esc(ch.name)}${ch.hd?' HD':''}</div>
-    <h2>${esc(now.title)}</h2><div class="meta">${fmt(now.start)} – ${fmt(now.end)} · ${Math.round((now.end-Date.now())/MIN)} min left</div>
+    <h2>${esc(now.title)}</h2><div class="meta">${now.end>now.start?`${fmt(now.start)} – ${fmt(now.end)} · ${Math.round((now.end-Date.now())/MIN)} min left`:''}</div>
     <p>${esc(now.desc)}</p>
     <div class="later">${later.filter(Boolean).map(p=>`<div><span>${fmt(p.start)}</span><span>${esc(p.title)}</span></div>`).join('')}</div>
     <span class="watch">▶ OK to watch in ${ch.app}</span>`;
@@ -293,7 +313,7 @@ const OD=[
 document.getElementById('od').innerHTML=OD.map(([h,items])=>`<div><h3>${h}</h3><div class="row">${items.map(([k,d,u,c])=>`<a class="tile" data-nav href="${u}" target="_blank" rel="noopener"><span class="sw" style="background:${c}"></span><span class="k">${k}</span><span class="d">${d}</span></a>`).join('')}</div></div>`).join('');
 
 /* ---------- Tabs / routing ---------- */
-const VIEWS=['live','guide','ondemand'];
+const VIEWS=['live','guide','ondemand','appcheck'];
 function show(v,focus=true){
   if(!VIEWS.includes(v))v='live';
   VIEWS.forEach(x=>{document.getElementById('v-'+x).hidden=x!==v;document.querySelector(`nav a[data-tab="${x}"]`).toggleAttribute('aria-current',x===v);
@@ -302,6 +322,7 @@ function show(v,focus=true){
   if(v==='live')(chlist.querySelector(`[data-ch="${current}"]`)||chlist.firstElementChild).focus();
   if(v==='guide')focusGuideNow();
   if(v==='ondemand')document.querySelector('#od .tile').focus();
+  if(v==='appcheck'){renderAppCheck();document.querySelector('#appcheck [data-nav]')?.focus()}
 }
 addEventListener('hashchange',()=>show(location.hash.slice(1)));
 // Called by the Firestick app when Back is pressed: return to Live TV first, exit from there.
@@ -341,11 +362,66 @@ addEventListener('keydown',e=>{
     const ch=CH[(i+(e.key==='PageUp'?-1:1)+CH.length)%CH.length];tuneTo(ch.n)}
 });
 
+/* ---------- Firestick app: play via the native bridge ---------- */
+if(NATIVE){
+  document.getElementById('tab-appcheck').hidden=false;
+  document.addEventListener('click',e=>{
+    const a=e.target.closest('a.ch, a.cell');if(!a)return;
+    e.preventDefault();const ch=CH.find(c=>c.n==a.dataset.ch);if(ch)NATIVE.play(JSON.stringify(chReq(ch)));
+  });
+}
+
+/* ---------- Real listings from Fire TV's channel data, when the apps provide them ---------- */
+function loadRealGuide(){
+  if(!NATIVE)return;
+  let data={};try{data=JSON.parse(NATIVE.guide(JSON.stringify(CH.map(chReq)),dayStart,dayEnd))}catch(e){return}
+  let real=0;
+  CH.forEach(ch=>{const list=data[String(ch.n)];if(!list||!list.length)return;real++;
+    ch.progs=list.filter(p=>p.e>p.s).map(p=>({title:p.t||'Unknown',desc:p.d||'',start:p.s,end:p.e,ch}));ch.real=true});
+  const chip=document.getElementById('listings-chip');
+  if(real){chip.textContent=real===CH.length?'North West · Live listings':`North West · Live listings ${real}/${CH.length}`;chip.title='Listings from your Fire TV; other channels show sample listings'}
+  renderLive();renderGuide();
+}
+window.hubNativeReady=()=>{loadRealGuide();if(location.hash==='#appcheck')renderAppCheck()};
+
+/* ---------- App check (Firestick only): what the app can see, and launch tests ---------- */
+function renderAppCheck(){
+  const box=document.getElementById('appcheck');
+  if(!NATIVE){box.innerHTML='<p>App check works in the Firestick app only.</p>';return}
+  let d={};try{d=JSON.parse(NATIVE.diagnostics(JSON.stringify(CH.map(chReq))))}catch(e){d={error:String(e)}}
+  const yes=(ok,t)=>`<span class="${ok?'good':'bad'}">${t}</span>`;
+  const apps=Object.entries(d.apps||{}).map(([k,v])=>`<div>${esc(k)}: ${v?yes(true,'found')+' <span class="mono">'+esc(v)+'</span>':yes(false,'not found')}</div>`).join('');
+  const matches=d.matches||[];
+  box.innerHTML=`
+    <div><h3>Summary</h3><div class="diag">
+      <div>App version ${esc(d.version||'?')}<br><span class="mono">${esc(d.device||'')}</span></div>
+      <div>Permission to read Fire TV channels: ${yes(d.epgPermission,d.epgPermission?'allowed':'not allowed')}
+        ${d.epgPermission?'':'<br><a href="#" data-nav data-act="perm" style="color:var(--focus)">Ask again</a>'}</div>
+      <div>Fire TV channels found: ${yes(d.tvChannelCount>0,String(d.tvChannelCount??0))}${d.tvError?'<br><span class="bad">'+esc(d.tvError)+'</span>':''}</div>
+      ${apps}${d.error?'<div class="bad">'+esc(d.error)+'</div>':''}
+    </div></div>
+    <div><h3>Launch test: pick a method for each channel and tell Claude which one plays it</h3>
+      <div style="display:flex;flex-direction:column;gap:6px">${CH.map(ch=>{const m=matches.find(x=>x.n==ch.n)||{};
+        const b=(k,t,on=true)=>on?`<a href="#" data-nav data-act="play" data-ch="${ch.n}" data-m="${k}">${t}</a>`:'';
+        return `<div class="trow"><span><b>${ch.n}</b> ${esc(ch.name)}</span>
+          <span class="mono">${m.name?esc(m.name)+' · '+esc(m.pkg||''):'no Fire TV channel match'}</span>
+          <span class="btns">${b('deep','A',!!m.deep)}${b('channel','B',!!m.name)}${b('app','C',!!m.app)}${b('web','D')}${b('open','E')}</span></div>`}).join('')}
+      </div>
+      <p class="mono">A = Fire TV deep link · B = Fire TV channel · C = app link · D = web link · E = just open the app</p></div>
+    <div><h3>Fire TV channel list (first 60)</h3><div class="diag">${(d.tvChannels||[]).map(t=>`<div class="mono">${esc(t)}</div>`).join('')||'<div>None</div>'}</div></div>
+    <div><h3>Installed apps</h3><div class="diag">${(d.installedApps||[]).map(t=>`<div class="mono">${esc(t)}</div>`).join('')}</div></div>`;
+}
+document.getElementById('appcheck').addEventListener('click',e=>{
+  const a=e.target.closest('a[data-act]');if(!a)return;e.preventDefault();
+  if(a.dataset.act==='perm'){NATIVE.requestPermission();return}
+  const ch=CH.find(c=>c.n==a.dataset.ch);NATIVE.play(JSON.stringify({...chReq(ch),method:a.dataset.m}));
+});
+
 /* ---------- Clock + live refresh ---------- */
 function tick(){document.getElementById('clock').textContent=new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}
 tick();setInterval(()=>{tick();if(!document.getElementById('v-live').hidden)renderLive()},30000);
 
-renderLive();renderGuide();
+renderLive();renderGuide();loadRealGuide();
 const start=location.hash.slice(1)||'live';show(start,false);
 setTimeout(()=>{show(start)},50);
 })();
